@@ -21,7 +21,8 @@ func New(cfg config.Config, db *gorm.DB) *gin.Engine {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.New()
-	r.Use(gin.Recovery(), middleware.Security(cfg))
+	r.Use(gin.Recovery())
+	r.Use(middleware.Security(cfg))
 	r.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
 	r.GET("/app-config.js", appConfigHandler(cfg))
 	adminDAO := dao.NewAdminDAO(db)
@@ -41,14 +42,6 @@ func New(cfg config.Config, db *gorm.DB) *gin.Engine {
 	r.POST("/telegram/webhook", gin.WrapF(bot.Global.WebhookHandler()))
 	registerFrontend(r, cfg)
 	return r
-}
-
-func appConfigHandler(cfg config.Config) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		payload, _ := json.Marshal(gin.H{"adminRoutePrefix": cfg.AdminRoutePrefix})
-		c.Header("Content-Type", "application/javascript; charset=utf-8")
-		c.String(http.StatusOK, "window.__APP_CONFIG__ = %s;", payload)
-	}
 }
 
 func registerFrontend(r *gin.Engine, cfg config.Config) {
@@ -81,7 +74,13 @@ func registerFrontend(r *gin.Engine, cfg config.Config) {
 }
 
 func isBackendPath(path, adminPrefix string) bool {
-	return path == adminPrefix || strings.HasPrefix(path, adminPrefix+"/") || strings.HasPrefix(path, "/telegram/") || path == "/telegram" || path == "/health" || path == "/app-config.js"
+	if path == adminPrefix || strings.HasPrefix(path, adminPrefix+"/") {
+		return true
+	}
+	if path == "/telegram" || strings.HasPrefix(path, "/telegram/") {
+		return true
+	}
+	return path == "/health" || path == "/app-config.js"
 }
 
 func serveDistFile(c *gin.Context, dist string) bool {
@@ -96,4 +95,12 @@ func serveDistFile(c *gin.Context, dist string) bool {
 	}
 	c.File(fullPath)
 	return true
+}
+
+func appConfigHandler(cfg config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		payload, _ := json.Marshal(gin.H{"adminRoutePrefix": cfg.AdminRoutePrefix})
+		c.Header("Content-Type", "application/javascript; charset=utf-8")
+		c.String(http.StatusOK, "window.__APP_CONFIG__ = %s;", payload)
+	}
 }
