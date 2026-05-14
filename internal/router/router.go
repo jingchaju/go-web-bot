@@ -1,11 +1,7 @@
 package router
 
 import (
-	"encoding/json"
 	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go-web-bot/internal/bot"
@@ -23,122 +19,54 @@ func New(cfg config.Config, db *gorm.DB) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
 
-	// 基础监控与配置
-	r.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
+	// 1. 基础监控与全局动态配置
+	r.GET("/health", func(c *gin.Context) { 
+		c.JSON(http.StatusOK, gin.H{"status": "ok"}) 
+	})
+    
+	// 引用外部定义（确保 internal/router/app_config.go 中有此函数）
 	r.GET("/app-config.js", appConfigHandler(cfg))
 
 	adminDAO := dao.NewAdminDAO(db)
 	h := handlers.AdminHandler{Config: cfg, DAO: adminDAO}
 
-	// 管理后台 API 分组 (RSA 登录与请求签名验证)
+	// 2. 管理后台 API 分组
+	// 使用自定义前缀 + 安全过滤（防XSS、CORS、请求签名校验）
 	api := r.Group(cfg.AdminRoutePrefix, middleware.Security(cfg))
 	{
+		// 登录流程：挑战码获取 -> RSA加密登录
 		api.GET("/auth/challenge", h.AuthChallenge)
 		api.POST("/login", h.Login)
 
-		// 需要 JWT 验证的私有接口
+		// 3. 需要 JWT 验证的私有接口分组
+		// 增强：强制鉴权，且所有 API 交互在 middleware 中完成解密/验签
 		private := api.Group("", middleware.JWT(cfg))
 		{
 			private.GET("/me", h.Me)
 			private.GET("/dashboard", h.Dashboard)
+			
+			// Bot 管理
 			private.GET("/bot/config", h.GetBotConfig)
-			private.POST("/bot/config", h.SaveBotConfig)
-			private.POST("/bot/start", h.StartBot)
+			private.POST("/bot/config", h.SaveBotConfig) // 成功后前端需弹窗交互
+			private.POST("/bot/start", h.StartBot)       // 成功后前端触发通知
 			private.POST("/bot/stop", h.StopBot)
+			
+			// 系统设置：更改用户名/密码
+			// 逻辑说明：成功后后端应清除 Token，前端拦截返回码执行登出
 			private.POST("/settings/account", h.UpdateAccount)
 			private.POST("/settings/password", h.UpdatePassword)
 		}
 	}
 
-	// Telegram Webhook 接口
+	// 4. Telegram Webhook 接口
+	// 注意：确保路径与后台配置一致。建议使用动态路径：/telegram/:token
 	r.POST("/telegram/webhook", gin.WrapF(bot.Global.WebhookHandler()))
 
-	// 注册前端静态文件服务
+	// 5. 注册前端静态文件服务
+	// 引用外部定义（确保 internal/router/frontend.go 中有此函数）
 	registerFrontend(r, cfg)
 
 	return r
 }
 
-// 动态生成前端配置，解决登录接口 404 的关键
-func appConfigHandler(cfg config.Config) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		payload, _ := json.Marshal(gin.H{
-			"adminRoutePrefix": cfg.AdminRoutePrefix,
-		})
-		c.Header("Content-Type", "application/javascript; charset=utf-8")
-		c.String(http.StatusOK, "window.__APP_CONFIG__ = %s;", payload)
-	}
-}
 
-func registerFrontend(r *gin.Engine, cfg config.Config) {
-	dist := cfg.FrontendDist
-	indexPath := filepath.Join(dist, "index.html")
-
-	// 检查前端静态目录是否存在
-	if _, err := os.Stat(indexPath); err != nil {
-		r.GET("/", func(c *gin.Context) { c.String(http.StatusOK, "telegram bot admin service is running") })
-		return
-	}
-
-	r.GET("/", func(c *gin.Context) { c.File(indexPath) })
-
-	// 处理单页应用 (SPA) 路由冲突
-	r.NoRoute(func(c *gin.Context) {
-		// 1. 补偿处理 Webhook 请求 (针对某些 Nginx 配置转发导致的路径偏差)
-		if c.Request.Method == http.MethodPost && strings.HasPrefix(c.Request.URL.Path, "/telegram") {
-			bot.Global.WebhookHandler()(c.Writer, c.Request)
-			return
-		}
-
-		// 2. 如果是后端 API 路径但未匹配到，直接返回 404 而不重定向到 index.html
-		if isBackendPath(c.Request.URL.Path, cfg.AdminRoutePrefix) {
-			c.JSON(http.StatusNotFound, gin.H{"message": "API endpoint not found"})
-			return
-		}
-
-		// 3. 尝试读取静态资源 (js/css/images)
-		if serveDistFile(c, dist) {
-			return
-		}
-
-		// 4. 其他所有 GET 请求重定向到 index.html，交给前端 Vue/React Router 处理
-		if c.Request.Method == http.MethodGet {
-			c.File(indexPath)
-			return
-		}
-
-		c.JSON(http.StatusNotFound, gin.H{"message": "not found"})
-	})
-}
-
-// 判定是否属于后端保留路径
-func isBackendPath(path, adminPrefix string) bool {
-	if path == adminPrefix || strings.HasPrefix(path, adminPrefix+"/") {
-		return true
-	}
-	if strings.HasPrefix(path, "/telegram") {
-		return true
-	}
-	// 排除基础服务路径
-	reserved := []string{"/health", "/app-config.js"}
-	for _, p := range reserved {
-		if path == p {
-			return true
-		}
-	}
-	return false
-}
-
-func serveDistFile(c *gin.Context, dist string) bool {
-	requestPath := strings.TrimPrefix(filepath.Clean(c.Request.URL.Path), string(filepath.Separator))
-	if requestPath == "." || strings.HasPrefix(requestPath, "..") {
-		return false
-	}
-	fullPath := filepath.Join(dist, requestPath)
-	info, err := os.Stat(fullPath)
-	if err != nil || info.IsDir() {
-		return false
-	}
-	c.File(fullPath)
-	return true
-}
