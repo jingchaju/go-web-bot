@@ -27,6 +27,7 @@ type Config struct {
 	AdminSessionTTLMinutes         int
 	AdminRoutePrefix               string
 	FrontendDist                   string
+	PublicBaseURL                  string
 }
 
 var App Config
@@ -53,6 +54,7 @@ func Load() Config {
 		AdminSessionTTLMinutes:         getInt("ADMIN_SESSION_TTL_MINUTES", 120),
 		AdminRoutePrefix:               get("ADMIN_ROUTE_PREFIX", "/api/admin"),
 		FrontendDist:                   get("FRONTEND_DIST", "web/dist"),
+		PublicBaseURL:                  get("PUBLIC_BASE_URL", ""),
 	}
 	return App
 }
