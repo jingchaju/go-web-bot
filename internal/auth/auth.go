@@ -31,7 +31,7 @@ func GenerateAdminCredential(adminSecret string) (string, string, string, error)
 	account := fmt.Sprintf("%06d", accountNum%1000000)
 	passwordBytes := sha256.Sum256(append(seed, digest[:]...))
 	password := hex.EncodeToString(passwordBytes[:])
-	return account, password, SignPassword(password, adminSecret), nil
+	return account, password, SignPassword(HashPassword(password), adminSecret), nil
 }
 func SignPassword(password, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
@@ -39,6 +39,10 @@ func SignPassword(password, secret string) string {
 	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
 }
 func EqualSignature(password, stored, secret string) bool {
+	return hmac.Equal([]byte(SignPassword(HashPassword(password), secret)), []byte(stored))
+}
+
+func EqualLegacySignature(password, stored, secret string) bool {
 	return hmac.Equal([]byte(SignPassword(password, secret)), []byte(stored))
 }
 func SignPayload(payload []byte, secret string) string {

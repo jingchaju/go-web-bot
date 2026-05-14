@@ -4,7 +4,7 @@
 
 ## 启动流程
 
-1. 复制 `.env.example` 为 `.env`，配置 PostgreSQL、Redis、JWT_SECRET、ADMIN_SECRET。
+1. 复制 `.env.example` 为 `.env`，配置 PostgreSQL、Redis、JWT_SECRET、ADMIN_SECRET。生产 Webhook 推荐设置 `PUBLIC_BASE_URL=https://你的域名`，这样后台填写 `/telegram` 这类相对路径时后端会自动注册为完整 HTTPS Webhook。
 2. 运行后端：`go run .`。
 3. 首次启动会在 `admin_config` 表自动创建管理员，并在标准输出打印一次性账号和密码，请立即保存。
 4. 进入前端目录，复制 `web/.env.example` 为 `web/.env`，确保 `VITE_API_HMAC_SECRET` 与后端 `JWT_SECRET` 一致。
@@ -13,7 +13,7 @@
 
 ## 目录
 
-- `internal/config`：读取 `.env` 并集中定义配置。
+- `internal/config`：读取 `.env` 并集中定义配置，包括后台 API 前缀、前端 dist 路径和公开域名 `PUBLIC_BASE_URL`。
 - `internal/logger`：统一 info/warning/error/debug/fatal 日志。
 - `internal/ctime`：中国时间和时间戳。
 - `internal/httpclient`：全局 HTTP 客户端与 GET/POST 封装。

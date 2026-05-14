@@ -9,38 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go-web-bot/internal/bot"
 	"go-web-bot/internal/config"
-	"go-web-bot/internal/dao"
-	"go-web-bot/internal/handlers"
-	"go-web-bot/internal/middleware"
-	"gorm.io/gorm"
 )
-
-func New(cfg config.Config, db *gorm.DB) *gin.Engine {
-	if cfg.AppEnv == "production" {
-		gin.SetMode(gin.ReleaseMode)
-	}
-	r := gin.New()
-	r.Use(gin.Recovery())
-	r.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
-	r.GET("/app-config.js", appConfigHandler(cfg))
-	adminDAO := dao.NewAdminDAO(db)
-	h := handlers.AdminHandler{Config: cfg, DAO: adminDAO}
-	api := r.Group(cfg.AdminRoutePrefix, middleware.Security(cfg))
-	api.GET("/auth/challenge", h.AuthChallenge)
-	api.POST("/login", h.Login)
-	private := api.Group("", middleware.JWT(cfg))
-	private.GET("/me", h.Me)
-	private.GET("/dashboard", h.Dashboard)
-	private.GET("/bot/config", h.GetBotConfig)
-	private.POST("/bot/config", h.SaveBotConfig)
-	private.POST("/bot/start", h.StartBot)
-	private.POST("/bot/stop", h.StopBot)
-	private.POST("/settings/account", h.UpdateAccount)
-	private.POST("/settings/password", h.UpdatePassword)
-	r.POST("/telegram/webhook", gin.WrapF(bot.Global.WebhookHandler()))
-	registerFrontend(r, cfg)
-	return r
-}
 
 func registerFrontend(r *gin.Engine, cfg config.Config) {
 	dist := cfg.FrontendDist
@@ -52,6 +21,10 @@ func registerFrontend(r *gin.Engine, cfg config.Config) {
 
 	r.GET("/", func(c *gin.Context) { c.File(indexPath) })
 	r.NoRoute(func(c *gin.Context) {
+		if c.Request.Method == http.MethodPost && bot.Global.AcceptsWebhookPath(c.Request.URL.Path) {
+			bot.Global.WebhookHandler()(c.Writer, c.Request)
+			return
+		}
 		if c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead {
 			c.JSON(http.StatusNotFound, gin.H{"message": "not found"})
 			return
@@ -68,7 +41,13 @@ func registerFrontend(r *gin.Engine, cfg config.Config) {
 }
 
 func isBackendPath(path, adminPrefix string) bool {
-	return strings.HasPrefix(path, adminPrefix) || strings.HasPrefix(path, "/telegram/") || path == "/health"
+	if path == adminPrefix || strings.HasPrefix(path, adminPrefix+"/") {
+		return true
+	}
+	if path == "/telegram" || strings.HasPrefix(path, "/telegram/") {
+		return true
+	}
+	return path == "/health" || path == "/app-config.js"
 }
 
 func serveDistFile(c *gin.Context, dist string) bool {
