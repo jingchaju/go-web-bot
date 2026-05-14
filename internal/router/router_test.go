@@ -21,7 +21,7 @@ func TestFrontendFallbackServesSPAHistoryRoutes(t *testing.T) {
 
 	r := gin.New()
 	r.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
-	installFrontendRoutes(r, config.Config{FrontendDist: dist, AdminRoutePrefix: "/api/admin"})
+	registerFrontend(r, config.Config{FrontendDist: dist, AdminRoutePrefix: "/api/admin"})
 
 	for _, path := range []string{"/", "/login", "/users", "/bot"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
@@ -51,7 +51,7 @@ func TestFrontendFallbackServesDistAssets(t *testing.T) {
 	}
 
 	r := gin.New()
-	installFrontendRoutes(r, config.Config{FrontendDist: dist, AdminRoutePrefix: "/api/admin"})
+	registerFrontend(r, config.Config{FrontendDist: dist, AdminRoutePrefix: "/api/admin"})
 
 	req := httptest.NewRequest(http.MethodGet, "/assets/app.js", nil)
 	w := httptest.NewRecorder()
@@ -67,7 +67,7 @@ func TestFrontendFallbackServesDistAssets(t *testing.T) {
 func TestMissingFrontendDistKeepsServiceRoot(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	installFrontendRoutes(r, config.Config{FrontendDist: filepath.Join(t.TempDir(), "missing"), AdminRoutePrefix: "/api/admin"})
+	registerFrontend(r, config.Config{FrontendDist: filepath.Join(t.TempDir(), "missing"), AdminRoutePrefix: "/api/admin"})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
@@ -88,7 +88,7 @@ func TestFrontendFallbackDoesNotMaskBackend404(t *testing.T) {
 	}
 
 	r := gin.New()
-	installFrontendRoutes(r, config.Config{FrontendDist: dist, AdminRoutePrefix: "/api/admin"})
+	registerFrontend(r, config.Config{FrontendDist: dist, AdminRoutePrefix: "/api/admin"})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/admin/missing", nil)
 	w := httptest.NewRecorder()
