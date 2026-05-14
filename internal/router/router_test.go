@@ -123,3 +123,8 @@ func TestFrontendFallbackDoesNotMaskExactBackendPaths(t *testing.T) {
 		}
 	}
 }
+
+func TestNewRegistersRoutesWithoutPanic(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	_ = New(config.Config{AdminRoutePrefix: "/api/admin", FrontendDist: filepath.Join(t.TempDir(), "missing")}, nil)
+}
