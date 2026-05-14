@@ -1,2 +1,28 @@
-<script setup lang="ts">import AdminLayout from '../layouts/AdminLayout.vue'</script>
-<template><AdminLayout><h1 class="mb-6 text-3xl font-black">用户管理</h1><div class="card overflow-hidden"><table class="w-full text-left"><thead class="bg-slate-50"><tr><th class="p-4">ID</th><th>Telegram ID</th><th>用户名</th><th>注册时间</th></tr></thead><tbody><tr><td class="p-8 text-center text-slate-400" colspan="4">暂无用户数据</td></tr></tbody></table></div></AdminLayout></template>
+<script setup lang="ts">
+import AdminLayout from '../layouts/AdminLayout.vue'
+</script>
+
+<template>
+  <AdminLayout>
+    <h1 class="mb-6 text-3xl font-black">用户管理</h1>
+    <div class="card overflow-hidden">
+      <table class="w-full text-left">
+        <thead class="bg-slate-50">
+          <tr>
+            <th class="p-4">ID</th>
+            <th>Telegram ID</th>
+            <th>用户名</th>
+            <th>注册时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="p-8 text-center text-slate-400" colspan="4">
+              暂无用户数据
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </AdminLayout>
+</template>
