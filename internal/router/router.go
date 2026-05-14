@@ -81,7 +81,7 @@ func registerFrontend(r *gin.Engine, cfg config.Config) {
 }
 
 func isBackendPath(path, adminPrefix string) bool {
-	return strings.HasPrefix(path, adminPrefix) || strings.HasPrefix(path, "/telegram/") || path == "/health"
+	return path == adminPrefix || strings.HasPrefix(path, adminPrefix+"/") || strings.HasPrefix(path, "/telegram/") || path == "/telegram" || path == "/health" || path == "/app-config.js"
 }
 
 func serveDistFile(c *gin.Context, dist string) bool {

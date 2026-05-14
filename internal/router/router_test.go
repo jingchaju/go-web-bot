@@ -100,3 +100,26 @@ func TestFrontendFallbackDoesNotMaskBackend404(t *testing.T) {
 		t.Fatal("backend 404 was masked by frontend index.html")
 	}
 }
+
+func TestFrontendFallbackDoesNotMaskExactBackendPaths(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	dist := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dist, "index.html"), []byte("index"), 0o644); err != nil {
+		t.Fatalf("write index.html: %v", err)
+	}
+
+	r := gin.New()
+	registerFrontend(r, config.Config{FrontendDist: dist, AdminRoutePrefix: "/api/admin"})
+
+	for _, path := range []string{"/api/admin", "/telegram", "/app-config.js"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("GET %s status = %d, want %d", path, w.Code, http.StatusNotFound)
+		}
+		if w.Body.String() == "index" {
+			t.Fatalf("GET %s was masked by frontend index.html", path)
+		}
+	}
+}
